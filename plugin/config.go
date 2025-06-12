@@ -1,6 +1,6 @@
 /*
 ** Zabbix
-** Copyright (C) 2001-2025 Zabbix SIA
+** Copyright 2001-2022 Zabbix SIA
 **
 ** Licensed under the Apache License, Version 2.0 (the "License");
 ** you may not use this file except in compliance with the License.
@@ -19,50 +19,34 @@ package plugin
 
 import (
 	"fmt"
-
 	"golang.zabbix.com/sdk/conf"
 	"golang.zabbix.com/sdk/plugin"
 )
 
-const (
-	empty   = ""
-	req     = "required"
-	reqCa   = "verify_ca"
-	reqFull = "verify_full"
-)
-
-var validTLSOptions = []string{empty, req, reqCa, reqFull}
-
 type Session struct {
-	URI         string `conf:"name=Uri,optional"`
-	Password    string `conf:"optional"`
-	User        string `conf:"optional"`
-	TLSConnect  string `conf:"name=TLSConnect,optional"`
-	TLSCAFile   string `conf:"name=TLSCAFile,optional"`
-	TLSCertFile string `conf:"name=TLSCertFile,optional"`
-	TLSKeyFile  string `conf:"name=TLSKeyFile,optional"`
+	URI        string `conf:"name=Uri"`                                // 连接字符串
+	MinIdle    string `conf:"name=MinIdle,range=1:100,default=5"`      // 最小空闲连接数
+	MaxConnect string `conf:"name=MaxConnect,range=1:200,default=100"` // 最大连接数
 }
 
 type PluginOptions struct {
-	System plugin.SystemOptions `conf:"optional"` //nolint:staticcheck
-	// Timeout is the amount of time to wait for a server to respond when
-	// first connecting and on follow up operations in the session.
+	plugin.SystemOptions `conf:"optional,name=System"`
+	// 在会话中首次连接以及后续操作时，等待服务器响应的时间量
 	Timeout int `conf:"optional,range=1:30"`
 
-	// KeepAlive is a time to wait before unused connections will be closed.
+	// KeepAlive  未使用连接关闭前的等待时间
 	KeepAlive int `conf:"optional,range=60:900,default=60"`
 
-	// Sessions stores pre-defined named sets of connections settings.
+	// 存储预定义的命名连接设置集合
+	// 每个连接都有一个唯一的名称，用于在插件配置中引用
 	Sessions map[string]Session `conf:"optional"`
-
-	// Default stores default connection parameter values from configuration file
-	Default Session `conf:"optional"`
+	Default  Session            `conf:"optional"`
 }
 
-// Configure implements the Configurator interface.
-// Initializes configuration structures.
+// Configure 实现配置接口
+// 初始化配置结构
 func (p *Plugin) Configure(global *plugin.GlobalOptions, options interface{}) {
-	if err := conf.UnmarshalStrict(options, &p.options); err != nil {
+	if err := conf.Unmarshal(options, &p.options); err != nil {
 		p.Errf("cannot unmarshal configuration options: %s", err)
 	}
 
@@ -71,31 +55,19 @@ func (p *Plugin) Configure(global *plugin.GlobalOptions, options interface{}) {
 	}
 }
 
-// Validate implements the Configurator interface.
-// Returns an error if validation of a plugin's configuration is failed.
+// Validate 实现配置接口
+// 如果效验插件配置失败将返回错误
 func (p *Plugin) Validate(options interface{}) error {
 	var opts PluginOptions
 
-	err := conf.UnmarshalStrict(options, &opts)
+	err := conf.Unmarshal(options, &opts)
 	if err != nil {
 		return err
 	}
 
-	for _, s := range opts.Sessions {
-		if !contains(validTLSOptions, s.TLSConnect) {
-			return fmt.Errorf("incorrect tls connection type %s", s.TLSConnect)
-		}
+	for s, session := range opts.Sessions {
+		fmt.Println("options.Sessions: ", s, session.URI, session.MinIdle, session.MaxConnect)
 	}
 
 	return nil
-}
-
-func contains(s []string, e string) bool {
-	for _, v := range s {
-		if v == e {
-			return true
-		}
-	}
-
-	return false
 }
